@@ -13,8 +13,7 @@ Gem::Specification.new do |spec|
   spec.email         =  ['lambdamichael@gmail.com']
 
   spec.summary       =  "FFI bindings to Pandoc"
-  spec.summary       = %q{TODO: Write a short summary, because Rubygems requires one.}
-  spec.description   = %q{TODO: Write a longer description or delete this line.}
+  spec.description   =  "Fast bindings to Pandoc through the 'ffi' gem and Haskell's C FFI"
   spec.homepage    =    'http://rubygems.org/gems/pandoc_rb'
   spec.license     =    'BSD-3-Clause'
 
