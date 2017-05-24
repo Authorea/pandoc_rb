@@ -1,0 +1,24 @@
+PATH
+  remote: .
+  specs:
+    pandoc_rb (0.1.0)
+      ffi (~> 1.9.18)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    ffi (1.9.18)
+    minitest (5.10.2)
+    rake (10.5.0)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  bundler (~> 1.15)
+  minitest (~> 5.0)
+  pandoc_rb!
+  rake (~> 10.0)
+
+BUNDLED WITH
+   1.15.0

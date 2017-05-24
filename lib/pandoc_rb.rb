@@ -5,7 +5,10 @@ require 'pandoc_rb/return'
 
 module PandocRB
   extend FFI::Library
-  ffi_lib 'Text.Pandoc.C.so'
+  unless File.exist? File.expand_path("ext/Text_Pandoc_C.so")
+    raise "feijifejifej"
+  end
+  ffi_lib File.expand_path("ext/Text_Pandoc_C.so")
   attach_function :hs_init, [:pointer, :pointer], :void
   attach_function :convert_hs, [PandocRB::String, PandocRB::String, PandocRB::String], PandocRB::Return
   attach_function :freeHaskellFunPtr, [:pointer], :void

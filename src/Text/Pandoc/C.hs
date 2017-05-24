@@ -134,9 +134,9 @@ convert_hs readerStr writerStr input = do
 
 foreign export ccall convert_hs :: Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> IO (Ptr (CInt, FunPtr (Ptr a -> IO ()), RStringLen))
 
--- -- | Dummy main to dissuade the compiler from warning a lack of @_main@
--- main :: IO CInt
--- main = print "hi there! I'm main. you probably shouldn't see me." >> return 0
+-- | Dummy main to dissuade the compiler from warning a lack of @_main@
+main :: IO CInt
+main = print "hi there! I'm main. you probably shouldn't see me." >> return 0
 
--- foreign export ccall main :: IO CInt
+foreign export ccall main :: IO CInt
 

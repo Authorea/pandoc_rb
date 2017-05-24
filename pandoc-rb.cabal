@@ -22,7 +22,8 @@ library
                      , pandoc
                      , storable-tuple
                      , transformers
-  ghc-options:         -O3 -no-hs-main -o lib/Text.Pandoc.C.so
+  ghc-options:         -O3
+  -- -no-hs-main -o lib/Text.Pandoc.C.so
   default-language:    Haskell2010
 
 test-suite pandoc-rb-test
