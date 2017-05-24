@@ -1,7 +1,10 @@
-require 'minitest/autorun'
-require 'pandoc_rb'
+require "test_helper"
 
-class PandocRBTest < Minitest::Test
+class PandocRbTest < Minitest::Test
+  def test_that_it_has_a_version_number
+    refute_nil ::PandocRb::VERSION
+  end
+
   def test_consistent_results
     100.times do
       in_format_str = "markdown"

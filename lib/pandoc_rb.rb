@@ -1,4 +1,5 @@
 require 'ffi'
+require "pandoc_rb/version"
 require 'pandoc_rb/string'
 require 'pandoc_rb/return'
 

@@ -1,6 +1,4 @@
+source "https://rubygems.org"
 
-source "https://rubygems.org/"
-
-gem 'ffi', '~> 1.9.18'
-
-# vim: syntax=ruby
+# Specify your gem's dependencies in pandoc_rb.gemspec
+gemspec
