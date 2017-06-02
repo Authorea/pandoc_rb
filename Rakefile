@@ -12,11 +12,12 @@ task :default => :test
 
 task :build_hs do
   puts "beginning to build haskell library"
-  unless system('stack build --force-dirty --ghc-options="-no-hs-main -dynamic -fPIC -shared -o ext/Text_Pandoc_C.so"') # --force-dirty -dynamic
+  unless system "stack ghc -- -O3 --make -no-hs-main -optl '-shared' -o Text_Pandoc_C.so src/Text/Pandoc/C.hs"
+    # system('stack build --force-dirty --ghc-options="-O3 -no-hs-main -dynamic -shared -o Text_Pandoc_C.so"') # --force-dirty -dynamic
     raise "stack build failed"
   end
 
-  unless File.exist? "ext/Text_Pandoc_C.so"
+  unless File.exist? "Text_Pandoc_C.so"
     raise "unfinished: the haskell library was not properly built"
   end
   puts "built haskell library"

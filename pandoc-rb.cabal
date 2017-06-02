@@ -22,15 +22,16 @@ library
                      , pandoc
                      , storable-tuple
                      , transformers
-  ghc-options:         -O3
+  -- ghc-options:         -O3
   -- -no-hs-main -o lib/Text.Pandoc.C.so
   default-language:    Haskell2010
 
 test-suite pandoc-rb-test
-  type:                exitcode-stdio-1.0
+  type:                detailed-0.9
   hs-source-dirs:      test
-  main-is:             Main.hs
+  test-module:         DetailedSpec
   build-depends:       base >= 4.7 && < 5
+                     , Cabal >= 1.20.0
                      , QuickCheck
                      , bytestring
                      , either
