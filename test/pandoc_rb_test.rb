@@ -11,7 +11,7 @@ class PandocRbTest < Minitest::Test
       out_format_str = "latex"
       input_str  = "hi there\nhow's it going?"
       output_str = "hi there how's it going?"
-      assert_equal output_str, PandocRB::convert(in_format_str, out_format_str, input_str)
+      assert_equal [true, output_str], PandocRB::convert(in_format_str, out_format_str, input_str)
     end
   end
 

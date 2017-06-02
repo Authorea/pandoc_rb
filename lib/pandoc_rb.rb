@@ -18,7 +18,7 @@ module PandocRB
     unless self.instance_variable_get :@PandocRB_loaded
       self.hs_init FFI::Pointer::NULL, FFI::Pointer::NULL
       Kernel.at_exit do
-        Pandoc.hs_exit
+        PandocRB.hs_exit
       end
       self.instance_variable_set :@PandocRB_loaded, true
     end
