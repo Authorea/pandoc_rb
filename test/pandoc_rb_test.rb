@@ -34,5 +34,20 @@ class PandocRbTest < Minitest::Test
     assert system('stack test')
   end
 
+  def test_argument_errors
+    reader_error = assert_raises ArgumentError do
+      assert_equal nil, PandocRB.convert('invalidReader', 'latex', "")
+    end
+    assert_equal nil, reader_error.message
+    writer_error = assert_raises ArgumentError do
+      assert_equal nil, PandocRB.convert('latex', 'invalidWriter', "")
+    end
+    assert_equal nil, writer_error.message
+  end
+
+  def test_syntax_error
+    assert_nil PandocRB.convert('latex', 'latex', "}")
+  end
+
 end
 
