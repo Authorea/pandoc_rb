@@ -30,23 +30,30 @@ class PandocRbTest < Minitest::Test
     end
   end
 
-  def test_run_haskell_tests
-    assert system('stack test')
-  end
+#   def test_run_haskell_tests
+#     assert system('stack test')
+#   end
 
   def test_argument_errors
     reader_error = assert_raises ArgumentError do
-      assert_equal nil, PandocRB.convert('invalidReader', 'latex', "")
+      PandocRB.convert('invalidReader', 'latex', "")
     end
-    assert_equal nil, reader_error.message
+    assert_equal 'Unknown reader: invalidReader', reader_error.message
     writer_error = assert_raises ArgumentError do
-      assert_equal nil, PandocRB.convert('latex', 'invalidWriter', "")
+      PandocRB.convert('latex', 'invalidWriter', "")
     end
-    assert_equal nil, writer_error.message
+    assert_equal 'Unknown writer: invalidWriter', writer_error.message
   end
 
   def test_syntax_error
-    assert_nil PandocRB.convert('latex', 'latex', "}")
+    parse_error = assert_raises PandocRB::ParsecError do
+      PandocRB.convert('latex', 'latex', "}")
+    end
+    assert_equal "}"     , parse_error.input
+    assert_equal "source", parse_error.source_name
+    assert_equal 1       , parse_error.line
+    assert_equal 1       , parse_error.column
+    assert_equal 70      , parse_error.messages.length
   end
 
 end

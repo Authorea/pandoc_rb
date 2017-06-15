@@ -13,19 +13,20 @@ import Control.Monad.Trans.Either (EitherT(..))
 import Data.Aeson (ToJSON(..), genericToEncoding, defaultOptions, genericToJSON, encode)
 import Data.Bifunctor (bimap, second)
 import Data.ByteString.Lazy hiding (putStrLn)
+import Data.ByteString (useAsCStringLen)
 import Data.ByteString.Unsafe (unsafeUseAsCStringLen, unsafePackMallocCStringLen, unsafeFinalize)
 import Data.Monoid ((<>))
 import Foreign.C.String (CStringLen, peekCStringLen, newCStringLen)
 import Foreign.C.Types (CChar, CLong, CInt(..))
 import Foreign.Marshal.Alloc (free, malloc)
-import Foreign.Ptr (Ptr(..), FunPtr(..), freeHaskellFunPtr, castPtr)
+import Foreign.Ptr (Ptr(..), FunPtr(..), castPtr)
 import Foreign.Storable (peek, poke)
 import Foreign.Storable.Tuple ()
+import GHC.Generics (Generic)
 import Prelude hiding (log)
 import Text.Pandoc (ReaderOptions, Pandoc, WriterOptions, PandocError(..), Reader(..), Writer(..), writerMediaBag, getReader, getWriter, def)
 import Text.Pandoc.MediaBag (MediaBag)
 import Text.Parsec.Error (ParseError, Message(..), errorPos, errorMessages)
-import GHC.Generics (Generic)
 import Text.Parsec.Pos (SourcePos(..), SourceName, Line, Column, sourceName, sourceLine, sourceColumn)
 
 
@@ -88,7 +89,7 @@ instance ToJSON PandocError where
 
 -- | Convert a `PandocError` to JSON
 showPandocError :: PandocError -> IO CStringLen
-showPandocError = flip unsafeUseAsCStringLen return . toStrict . encode
+showPandocError = flip useAsCStringLen return . toStrict . encode
 
 
 -- | Convert a `Reader` to a `CReader`
@@ -107,7 +108,7 @@ mkCReader ~(ByteStringReader reader) opts  str = log "55" . mapML showPandocErro
 mkCWriter :: Writer -> CWriter
 mkCWriter  (PureStringWriter   writer) opts pandoc = log "63" . lift $ newCStringLen $ writer opts pandoc
 mkCWriter  (IOStringWriter     writer) opts pandoc = log "64" . lift $ writer opts pandoc >>= newCStringLen
-mkCWriter ~(IOByteStringWriter writer) opts pandoc = log "65" . lift $ writer opts pandoc >>= flip unsafeUseAsCStringLen return . toStrict
+mkCWriter ~(IOByteStringWriter writer) opts pandoc = log "65" . lift $ writer opts pandoc >>= flip useAsCStringLen return . toStrict
 
 -- | `getReader` for foreign C exports. Retrieve reader based on formatSpec (format+extensions).
 getCReader :: CStringLen -> EitherT CStringLen IO CReader
@@ -153,38 +154,38 @@ writerOptions = def
 -- | `CStringLen` for use by Ruby
 type RStringLen = (Ptr CChar, CLong)
 
--- | Makes a function pointer to a `Ptr` freeing function
-foreign import ccall "wrapper" mkFree :: (Ptr a -> IO ()) -> IO (FunPtr (Ptr a -> IO ()))
-
 -- | Free the resulting type of `convert_hs`
-freeResult :: forall a. IO (FunPtr (Ptr a  -> IO ()))
-freeResult = mkFree $ \addr -> do
-  (_, _, strAddr, _) <- peek (castPtr addr :: Ptr (CInt, FunPtr (), Ptr CChar, CLong))
-  free strAddr
+freeResult :: Ptr () -> IO ()
+freeResult !addr = do
+  (_, strAddr, _) <- peek (castPtr addr :: Ptr (CInt, Ptr CChar, CLong))
+  -- putStrLn "freeing strAddr: 162"
+  -- free strAddr
+  putStrLn "freeing addr: 162"
   free addr
+  putStrLn "freed addr: 164"
 
-foreign export ccall freeHaskellFunPtr :: FunPtr a -> IO ()
+foreign export ccall freeResult :: Ptr () -> IO ()
 
--- | Takes: reader, writer, input and returns (isSuccess, a function to free the output, output)
-convert_hs :: Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> IO (Ptr (CInt, FunPtr (Ptr a -> IO ()), Ptr CChar, CLong))
+-- | Takes: reader, writer, input and returns (isSuccess, output pointer, output length)
+convert_hs :: Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> IO (Ptr (CInt, Ptr CChar, CLong))
 convert_hs readerStr writerStr input = do
   readerStr' <- second fromEnum <$> peek readerStr
   writerStr' <- second fromEnum <$> peek writerStr
   input'     <- second fromEnum <$> peek input
 
-  result <- fmap (bimap (second toEnum) (second toEnum)) . runEitherT $ convert readerOptions writerOptions readerStr' writerStr' input'
+  result     <- fmap (bimap (second toEnum) (second toEnum)) . runEitherT $ convert readerOptions writerOptions readerStr' writerStr' input'
   let (success, (rstrPtr, rstrLen)) = either (0,) (1,) result
 
-  freeResult' <- freeResult
   addr        <- malloc
-  addr `poke` (success, freeResult', rstrPtr, rstrLen)
-  (ss, _, _, _) <- peek addr
+  addr `poke` (success, rstrPtr, rstrLen)
+  -- For debugging memory errors
+  (ss, _, _) <- peek addr
   if ss /= 0 && ss /= 1
      then print (success, result, rstrLen) >> peek addr >>= print >> undefined
      else return ()
   return addr
 
-foreign export ccall convert_hs :: Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> IO (Ptr (CInt, FunPtr (Ptr a -> IO ()), Ptr CChar, CLong))
+foreign export ccall convert_hs :: Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> IO (Ptr (CInt, Ptr CChar, CLong))
 
 -- | Dummy main to dissuade the compiler from warning a lack of @_main@
 main :: IO CInt
