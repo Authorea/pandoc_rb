@@ -14,6 +14,8 @@ module PandocRB
   attach_function :freeHaskellFunPtr, [:pointer], :void
   attach_function :hs_exit, [], :void
 
+  attach_function :string_id, [PandocRB::String], PandocRB::Return
+
   def self.convert(in_format_str, out_format_str, input_str)
     unless self.instance_variable_get :@PandocRB_loaded
       self.hs_init FFI::Pointer::NULL, FFI::Pointer::NULL
@@ -33,6 +35,24 @@ module PandocRB
       return result
     end
   end
+
+  def id(input_str)
+    unless self.instance_variable_get :@PandocRB_loaded
+      self.hs_init FFI::Pointer::NULL, FFI::Pointer::NULL
+      Kernel.at_exit do
+        PandocRB.hs_exit
+      end
+      self.instance_variable_set :@PandocRB_loaded, true
+    end
+
+    begin
+      input      = PandocRB::String.from_str input_str
+      result_pointer = self.string_id input
+      result         = PandocRB::Return.get_result result_pointer
+      return result
+    end
+  end
+
 end
 
 class PandocRB::Return

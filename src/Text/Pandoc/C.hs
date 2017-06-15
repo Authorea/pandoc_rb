@@ -1,7 +1,7 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TupleSections #-}
 
 module Text.Pandoc.C where
 
@@ -133,6 +133,18 @@ convert_hs readerStr writerStr input = do
   return addr
 
 foreign export ccall convert_hs :: Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> IO (Ptr (CInt, FunPtr (Ptr a -> IO ()), RStringLen))
+
+string_id :: Ptr RStringLen -> IO (Ptr (CInt, FunPtr (Ptr a -> IO ()), RStringLen))
+string_id inStr = do
+  inStr'  <- second fromEnum <$> peek inStr
+  inStr'' <- peekCStringLen inStr'
+  outStr  <- second toEnum <$> newCStringLen inStr''
+  freeResult' <- freeResult
+  addr <- malloc
+  addr `poke` (1, freeResult', outStr)
+  return addr
+
+foreign export ccall string_id :: Ptr RStringLen -> IO (Ptr (CInt, FunPtr (Ptr a -> IO ()), RStringLen))
 
 -- | Dummy main to dissuade the compiler from warning a lack of @_main@
 main :: IO CInt
