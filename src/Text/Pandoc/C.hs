@@ -1,25 +1,32 @@
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
 
 module Text.Pandoc.C where
 
-import Prelude hiding (log)
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Either
-import Data.Bifunctor
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Either (EitherT(..))
+import Data.Aeson (ToJSON(..), genericToEncoding, defaultOptions, genericToJSON, encode)
+import Data.Bifunctor (bimap, second)
 import Data.ByteString.Lazy hiding (putStrLn)
-import Data.ByteString.Unsafe
+import Data.ByteString.Unsafe (unsafeUseAsCStringLen, unsafePackMallocCStringLen, unsafeFinalize)
 import Data.Monoid ((<>))
-import Foreign.C.String
-import Foreign.C.Types
-import Foreign.Marshal.Alloc
-import Foreign.Ptr
-import Foreign.Storable
-import Foreign.Storable.Tuple
-import Text.Pandoc
-import Text.Pandoc.MediaBag
+import Foreign.C.String (CStringLen, peekCStringLen, newCStringLen)
+import Foreign.C.Types (CChar, CLong, CInt(..))
+import Foreign.Marshal.Alloc (free, malloc)
+import Foreign.Ptr (Ptr(..), FunPtr(..), freeHaskellFunPtr, castPtr)
+import Foreign.Storable (peek, poke)
+import Foreign.Storable.Tuple ()
+import Prelude hiding (log)
+import Text.Pandoc (ReaderOptions, Pandoc, WriterOptions, PandocError(..), Reader(..), Writer(..), writerMediaBag, getReader, getWriter, def)
+import Text.Pandoc.MediaBag (MediaBag)
+import Text.Parsec.Error (ParseError, Message(..), errorPos, errorMessages)
+import GHC.Generics (Generic)
+import Text.Parsec.Pos (SourcePos(..), SourceName, Line, Column, sourceName, sourceLine, sourceColumn)
 
 
 -- | The `Reader` type modified for foreign C exports
@@ -49,14 +56,49 @@ mapMR f (EitherT m) = EitherT $ do
     ( Left  x) -> return $ Left      x
     ~(Right y) ->     Right <$> f y
 
+-- | A clone of `SourcePos`, to allow deriving `Generic`
+data SourcePos' = SourcePos' SourceName !Line !Column deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON SourcePos' where
+  toEncoding = genericToEncoding defaultOptions
+
+deriving instance Generic Message
+
+instance ToJSON Message where
+  toEncoding = genericToEncoding defaultOptions
+
+-- | A clone of `ParseError`, to allow deriving `Generic`
+data ParseError' = ParseError' !SourcePos' [Message] deriving (Generic)
+
+-- | Convert to our clone of `SourcePos`
+sourcePos' :: SourcePos -> SourcePos'
+sourcePos' !sp = SourcePos' (sourceName sp) (sourceLine sp) (sourceColumn sp)
+
+-- | Convert to our clone of `ParseError`
+parseError' :: ParseError -> ParseError'
+parseError' !pe = ParseError' (sourcePos' (errorPos pe)) (errorMessages pe)
+
+
+instance ToJSON ParseError where
+  toJSON = genericToJSON defaultOptions . parseError'
+  toEncoding = genericToEncoding defaultOptions . parseError'
+
+instance ToJSON PandocError where
+    toEncoding = genericToEncoding defaultOptions
+
+-- | Convert a `PandocError` to JSON
+showPandocError :: PandocError -> IO CStringLen
+showPandocError = flip unsafeUseAsCStringLen return . toStrict . encode
+
+
 -- | Convert a `Reader` to a `CReader`
 mkCReader :: Reader -> CReader
-mkCReader  (StringReader     reader) opts cstr = log "51" . mapML (newCStringLen . show) . EitherT $ do
+mkCReader  (StringReader     reader) opts cstr = log "51" . mapML showPandocError . EitherT $ do
   str <- peekCStringLen cstr
   readerResult <- reader opts str
   return $ second (, mempty) readerResult
-mkCReader ~(ByteStringReader reader) opts str = log "55" . mapML (newCStringLen . show) . EitherT $ do
-  bs     <- unsafePackMallocCStringLen str -- needs to be finalized with: unsafeFinalize :: ByteString -> IO ()
+mkCReader ~(ByteStringReader reader) opts  str = log "55" . mapML showPandocError . EitherT $ do
+  bs           <- unsafePackMallocCStringLen str -- needs to be finalized with: unsafeFinalize :: ByteString -> IO ()
   readerResult <- reader opts $ fromStrict bs
   unsafeFinalize bs
   return readerResult
@@ -65,7 +107,7 @@ mkCReader ~(ByteStringReader reader) opts str = log "55" . mapML (newCStringLen 
 mkCWriter :: Writer -> CWriter
 mkCWriter  (PureStringWriter   writer) opts pandoc = log "63" . lift $ newCStringLen $ writer opts pandoc
 mkCWriter  (IOStringWriter     writer) opts pandoc = log "64" . lift $ writer opts pandoc >>= newCStringLen
-mkCWriter ~(IOByteStringWriter writer) opts pandoc = log "65" . lift $ writer opts pandoc >>= newCStringLen . show
+mkCWriter ~(IOByteStringWriter writer) opts pandoc = log "65" . lift $ writer opts pandoc >>= flip unsafeUseAsCStringLen return . toStrict
 
 -- | `getReader` for foreign C exports. Retrieve reader based on formatSpec (format+extensions).
 getCReader :: CStringLen -> EitherT CStringLen IO CReader
@@ -134,7 +176,7 @@ convert_hs readerStr writerStr input = do
   let (success, (rstrPtr, rstrLen)) = either (0,) (1,) result
 
   freeResult' <- freeResult
-  addr        <- calloc
+  addr        <- malloc
   addr `poke` (success, freeResult', rstrPtr, rstrLen)
   (ss, _, _, _) <- peek addr
   if ss /= 0 && ss /= 1
@@ -143,21 +185,6 @@ convert_hs readerStr writerStr input = do
   return addr
 
 foreign export ccall convert_hs :: Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> IO (Ptr (CInt, FunPtr (Ptr a -> IO ()), Ptr CChar, CLong))
-
-string_id :: Ptr RStringLen -> IO (Ptr (CInt, FunPtr (Ptr a -> IO ()), Ptr CChar, CLong))
-string_id inStr = do
-  inStr'  <- second fromEnum <$> peek inStr
-  inStr'' <- unsafePackCStringLen inStr'
-  print inStr''
-  -- outStr  <- second toEnum <$> newCStringLen inStr''
-  freeResult' <- freeResult
-  addr <- calloc
-  -- unsafeUseAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
-  unsafeUseAsCStringLen inStr'' (poke addr . (\(x, y) -> (1, freeResult', x, y)) . second toEnum)
-  -- addr `poke` (1, freeResult', outStr)
-  return addr
-
-foreign export ccall string_id :: Ptr RStringLen -> IO (Ptr (CInt, FunPtr (Ptr a -> IO ()), Ptr CChar, CLong))
 
 -- | Dummy main to dissuade the compiler from warning a lack of @_main@
 main :: IO CInt

@@ -22,6 +22,8 @@ library
                      , pandoc
                      , storable-tuple
                      , transformers
+                     , aeson
+                     , parsec
   -- ghc-options:         -O3
   -- -no-hs-main -o lib/Text.Pandoc.C.so
   default-language:    Haskell2010
