@@ -36,7 +36,7 @@ module PandocRB
     end
   end
 
-  def id(input_str)
+  def self.id(input_str)
     unless self.instance_variable_get :@PandocRB_loaded
       self.hs_init FFI::Pointer::NULL, FFI::Pointer::NULL
       Kernel.at_exit do
@@ -57,12 +57,14 @@ end
 
 class PandocRB::Return
   def self.get_result(result_pointer)
-    result = self.new result_pointer
+    result     = self.new result_pointer
     result_str = result[:str_ptr].read_string_length result[:length]
+    result_str.force_encoding "utf-8"
+    success    = result[:success]
     free_me    = FFI::Function.new :void, [:pointer], result[:free_me]
     free_me.call result_pointer
     PandocRB.freeHaskellFunPtr result[:free_me]
-    [result[:success] == 1, result_str]
+    [success == 1, result_str]
   end
 end
 

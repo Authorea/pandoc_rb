@@ -7,9 +7,16 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
+    coderay (1.1.1)
     ffi (1.9.18)
+    method_source (0.8.2)
     minitest (5.10.2)
+    pry (0.10.4)
+      coderay (~> 1.1.0)
+      method_source (~> 0.8.1)
+      slop (~> 3.4)
     rake (10.5.0)
+    slop (3.6.0)
 
 PLATFORMS
   ruby
@@ -18,6 +25,7 @@ DEPENDENCIES
   bundler (~> 1.15)
   minitest (~> 5.0)
   pandoc_rb!
+  pry
   rake (~> 10.0)
 
 BUNDLED WITH
