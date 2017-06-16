@@ -6,6 +6,9 @@ module DetailedSpec (tests) where
 import qualified Test.QuickCheck as Q
 import Distribution.TestSuite as TS
 
+import Control.Monad
+import Control.Monad.Fix
+import Control.Monad.Trans.Class
 import Control.Monad.Trans.Either
 import Data.Bifunctor
 import Data.Either
@@ -104,6 +107,33 @@ prop_getCWriterGetsWriters = allProps testGotCWriter (fst <$> writers)
 --        (freerFunc freer) (castPtr resultPtr)
 --        return True
 
+
+testTimeoutEitherT :: Testable prop => Int -> (CStringLen -> IO prop) -> (a -> IO prop) -> EitherT CStringLen IO a -> Property
+testTimeoutEitherT us ifLeft ifRight = ioProperty . eitherT ifLeft ifRight . timeoutEitherT us
+
+
+prop_timeoutEitherT_times_out_on_0 :: Property
+prop_timeoutEitherT_times_out_on_0 = testTimeoutEitherT 0 (\(ptr, _) -> free ptr >> return True) (\_->return False) $ return ()
+
+prop_timeoutEitherT_times_out_on_loose_loop :: Property
+prop_timeoutEitherT_times_out_on_loose_loop = testTimeoutEitherT 1 (\(ptr, _) -> free ptr >> return True) return $ lift $ mapM_ putStr (repeat "") >> return False
+
+prop_timeoutEitherT_times_out_on_tight_loop :: Property
+prop_timeoutEitherT_times_out_on_tight_loop = testTimeoutEitherT 1 (\(ptr, _) -> free ptr >> return True) (return . (== 0)) . lift . mfix $ (return $!)
+
+prop_timeoutEitherT_does_not_time_out_on_result :: Property
+prop_timeoutEitherT_does_not_time_out_on_result = testTimeoutEitherT 100 (\(ptr, _) -> free ptr >> return False) return $ return True
+
+prop_timeoutEitherT_catches_exceptions :: Property
+prop_timeoutEitherT_catches_exceptions = testTimeoutEitherT 100 (\(ptr, _) -> free ptr >> return True) (\_->return False) . lift . print $ (div 1 0 :: Int)
+
+prop_timeoutEitherT_catches_errors :: Property
+prop_timeoutEitherT_catches_errors = testTimeoutEitherT 100 (\(ptr, _) -> free ptr >> return True) (\_->return False) $ undefined
+
+prop_timeoutEitherT_catches_lefts :: Property
+prop_timeoutEitherT_catches_lefts = testTimeoutEitherT 100 (\(ptr, _) -> free ptr >> return True) (\_->return False) (EitherT $ Left <$> (newCStringLen ""))
+
+
 toTSResult :: Q.Result -> TS.Result
 toTSResult Q.Success {} = TS.Pass
 toTSResult Q.GaveUp {} = TS.Fail "GaveUp"
@@ -126,6 +156,16 @@ tests = return [
   Test $ TestInstance (runQuickCheck prop_mapMRAppliesFunction0) "prop_mapMRAppliesFunction0" ["tag"] [] undefined,
   Test $ TestInstance (runQuickCheck prop_mapMRAppliesFunction1) "prop_mapMRAppliesFunction1" ["tag"] [] undefined,
   Test $ TestInstance (runQuickCheck prop_getCReaderGetsReaders) "prop_getCReaderGetsReaders" ["tag"] [] undefined,
-  Test $ TestInstance (runQuickCheck prop_getCWriterGetsWriters) "prop_getCWriterGetsWriters" ["tag"] [] undefined
+  Test $ TestInstance (runQuickCheck prop_getCWriterGetsWriters) "prop_getCWriterGetsWriters" ["tag"] [] undefined,
+  Test $ TestInstance (runQuickCheck prop_timeoutEitherT_times_out_on_0) "prop_timeoutEitherT_times_out_on_0" ["tag"] [] undefined,
+  Test $ TestInstance (runQuickCheck prop_timeoutEitherT_does_not_time_out_on_result) "prop_timeoutEitherT_does_not_time_out_on_result" ["tag"] [] undefined,
+  Test $ TestInstance (runQuickCheck prop_timeoutEitherT_catches_exceptions) "prop_timeoutEitherT_catches_exceptions" ["tag"] [] undefined,
+  Test $ TestInstance (runQuickCheck prop_timeoutEitherT_catches_errors) "prop_timeoutEitherT_catches_errors" ["tag"] [] undefined,
+  Test $ TestInstance (runQuickCheck prop_timeoutEitherT_catches_lefts) "prop_timeoutEitherT_catches_lefts" ["tag"] [] undefined,
+  Test $ TestInstance (runQuickCheck prop_timeoutEitherT_times_out_on_loose_loop) "prop_timeoutEitherT_times_out_on_loose_loop" ["tag"] [] undefined,
+  Test $ TestInstance (runQuickCheck prop_timeoutEitherT_times_out_on_tight_loop) "prop_timeoutEitherT_times_out_on_tight_loop" ["tag"] [] undefined
   ]
+
+
+
 

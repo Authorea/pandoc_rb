@@ -5,29 +5,33 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Text.Pandoc.C where
 
-import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Class  (lift)
 import Control.Monad.Trans.Either (EitherT(..))
-import Data.Aeson (ToJSON(..), genericToEncoding, defaultOptions, genericToJSON, encode)
-import Data.Bifunctor (bimap, second)
-import Data.ByteString.Lazy hiding (putStrLn)
-import Data.ByteString (useAsCStringLen)
-import Data.ByteString.Unsafe (unsafeUseAsCStringLen, unsafePackMallocCStringLen, unsafeFinalize)
-import Data.Monoid ((<>))
-import Foreign.C.String (CStringLen, peekCStringLen, newCStringLen)
-import Foreign.C.Types (CChar, CLong, CInt(..))
-import Foreign.Marshal.Alloc (free, malloc)
-import Foreign.Ptr (Ptr(..), FunPtr(..), castPtr)
-import Foreign.Storable (peek, poke)
-import Foreign.Storable.Tuple ()
-import GHC.Generics (Generic)
-import Prelude hiding (log)
-import Text.Pandoc (ReaderOptions, Pandoc, WriterOptions, PandocError(..), Reader(..), Writer(..), writerMediaBag, getReader, getWriter, def)
-import Text.Pandoc.MediaBag (MediaBag)
-import Text.Parsec.Error (ParseError, Message(..), errorPos, errorMessages)
-import Text.Parsec.Pos (SourcePos(..), SourceName, Line, Column, sourceName, sourceLine, sourceColumn)
+import Data.Aeson                 (ToJSON(..), genericToEncoding, defaultOptions, genericToJSON, encode)
+import Data.Bifunctor             (bimap, second)
+import Data.ByteString.Lazy       (toStrict, fromStrict)
+import Data.ByteString            (useAsCStringLen)
+import Data.ByteString.Unsafe     (unsafePackMallocCStringLen, unsafeFinalize)
+import Data.Monoid                ((<>))
+import Foreign.C.String           (CStringLen, peekCStringLen, newCStringLen)
+import Foreign.C.Types            (CChar, CLong, CInt(..))
+import Foreign.Marshal.Alloc      (free, malloc)
+import Foreign.Ptr                (Ptr)
+import Foreign.Storable           (peek, poke)
+import Foreign.Storable.Tuple     ()
+import GHC.Generics               (Generic)
+import Prelude hiding             (log)
+import Text.Pandoc                (ReaderOptions, Pandoc, WriterOptions, PandocError(..), Reader(..), Writer(..), writerMediaBag, getReader, getWriter, def)
+import Text.Pandoc.MediaBag       (MediaBag)
+import Text.Parsec.Error          (ParseError, Message(..), errorPos, errorMessages)
+import Text.Parsec.Pos            (SourcePos, SourceName, Line, Column, sourceName, sourceLine, sourceColumn)
+import System.Timeout             (timeout)
+import Control.Concurrent
+
 
 
 -- | The `Reader` type modified for foreign C exports
@@ -38,8 +42,8 @@ type CWriter = WriterOptions -> Pandoc -> EitherT CStringLen IO CStringLen
 
 -- | To log error locations to stdout, uncomment below
 log :: Show a => String -> EitherT a IO b -> EitherT a IO b
--- log str = mapML $ \x -> print (unwords [str, show x]) >> return x
-log _ = id
+log str = mapML $ \x -> print (unwords [str, show x]) >> return x
+-- log _ = id
 
 -- | Apply a monadic action to the left of an `EitherT`
 mapML :: Monad m => (a -> m b) -> EitherT a m c -> EitherT b m c
@@ -126,6 +130,23 @@ getCWriter cstr = log "77" $ do
     ( Left  err   ) ->      Left <$> newCStringLen err
     ~(Right writer) -> return . Right $ mkCWriter writer
 
+
+-- | This function forks a thread to both catch exceptions and better kill infinite loops that can't be caught with `timeout` alone.
+-- For example, @timeout 10 (forever $ return ())@ will never time out, but @timeoutEitherT 10 (lift $ forever $ return ())@ will.
+--
+-- timeoutEitherT is strict within the created thread
+timeoutEitherT :: Int -> EitherT CStringLen IO b -> EitherT CStringLen IO b
+timeoutEitherT us (EitherT io) = EitherT $ do
+  mvar   <- newEmptyMVar
+  tid    <- io `forkFinally` (putMVar mvar $!)
+  result <- timeout us (takeMVar mvar)
+  case result of
+    ( Nothing       )                          -> killThread tid >> Left <$> newCStringLen ("Pandoc timed out after " ++ show us ++ "microseconds")
+    ~(Just noTimeout) -> case noTimeout of
+                           ( Right successful) -> return successful
+                           ~(Left  err       ) -> Left <$> newCStringLen ("Pandoc internal error: " ++ show err)
+
+
 -- | The main conversion function.
 -- Takes `ReaderOptions`, `WriterOptions`, reader's formatSpec,
 -- writer's formatSpec, input and returns either an error string
@@ -157,39 +178,31 @@ type RStringLen = (Ptr CChar, CLong)
 -- | Free the resulting type of `convert_hs`
 freeResult :: Ptr () -> IO ()
 freeResult !addr = do
-  (_, strAddr, _) <- peek (castPtr addr :: Ptr (CInt, Ptr CChar, CLong))
-  -- putStrLn "freeing strAddr: 162"
+  -- (_, strAddr, _) <- peek (castPtr addr :: Ptr (CInt, Ptr CChar, CLong))
   -- free strAddr
-  putStrLn "freeing addr: 162"
   free addr
-  putStrLn "freed addr: 164"
 
 foreign export ccall freeResult :: Ptr () -> IO ()
 
 -- | Takes: reader, writer, input and returns (isSuccess, output pointer, output length)
 convert_hs :: Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> IO (Ptr (CInt, Ptr CChar, CLong))
 convert_hs readerStr writerStr input = do
-  readerStr' <- second fromEnum <$> peek readerStr
-  writerStr' <- second fromEnum <$> peek writerStr
-  input'     <- second fromEnum <$> peek input
-
-  result     <- fmap (bimap (second toEnum) (second toEnum)) . runEitherT $ convert readerOptions writerOptions readerStr' writerStr' input'
-  let (success, (rstrPtr, rstrLen)) = either (0,) (1,) result
-
-  addr        <- malloc
+  readerStr'                        <- second fromEnum <$> peek readerStr
+  writerStr'                        <- second fromEnum <$> peek writerStr
+  input'                            <- second fromEnum <$> peek input
+  let converted                     =  convert readerOptions writerOptions readerStr' writerStr' input'
+  let EitherT safeConverted         =  timeoutEitherT 10 converted
+  result                            <- bimap (second toEnum) (second toEnum) <$> safeConverted
+  let (success, (rstrPtr, rstrLen)) =  either (0,) (1,) result
+  addr                              <- malloc
   addr `poke` (success, rstrPtr, rstrLen)
-  -- For debugging memory errors
-  (ss, _, _) <- peek addr
-  if ss /= 0 && ss /= 1
-     then print (success, result, rstrLen) >> peek addr >>= print >> undefined
-     else return ()
   return addr
 
 foreign export ccall convert_hs :: Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> IO (Ptr (CInt, Ptr CChar, CLong))
 
--- | Dummy main to dissuade the compiler from warning a lack of @_main@
-main :: IO CInt
-main = print "hi there! I'm main. you probably shouldn't see me." >> return 0
+-- -- | Dummy main to dissuade the compiler from warning a lack of @_main@
+-- main :: IO CInt
+-- main = print "hi there! I'm main. you probably shouldn't see me." >> return 0
 
-foreign export ccall main :: IO CInt
+-- foreign export ccall main :: IO CInt
 

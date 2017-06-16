@@ -3,24 +3,26 @@ require 'json'
 require 'pandoc_rb/return'
 require 'pandoc_rb/string'
 require 'pandoc_rb/version'
+require 'pandoc_rb/readers'
+require 'pandoc_rb/writers'
 
 require 'pry'
 
-module PandocRB
+module PandocRb
   class Error < Exception
   end
 end
 
-module PandocRB
-  class ParseFailure < PandocRB::Error
+module PandocRb
+  class ParseFailure < PandocRb::Error
     def initialize(json)
       self.etc = json
     end
   end
 end
 
-module PandocRB
-  class ParsecError < PandocRB::Error
+module PandocRb
+  class ParsecError < PandocRb::Error
     attr_accessor :input, :source_name, :line, :column, :messages
 
     def initialize(json)
@@ -31,44 +33,48 @@ module PandocRB
   end
 end
 
-module PandocRB
+module PandocRb
   extend FFI::Library
   unless File.exist? File.expand_path("Text_Pandoc_C.so")
     raise "File does not exist"
   end
   ffi_lib File.expand_path("Text_Pandoc_C.so")
   attach_function :hs_init, [:pointer, :pointer], :void
-  attach_function :convert_hs, [PandocRB::String, PandocRB::String, PandocRB::String], PandocRB::Return
+  attach_function :convert_hs, [PandocRb::String, PandocRb::String, PandocRb::String], PandocRb::Return
   attach_function :freeResult, [:pointer], :void
   attach_function :hs_exit, [], :void
 
   def self.convert(in_format_str, out_format_str, input_str)
-    unless self.instance_variable_get :@PandocRB_loaded
+    unless self.instance_variable_get :@PandocRb_loaded
       self.hs_init FFI::Pointer::NULL, FFI::Pointer::NULL
       Kernel.at_exit do
-        PandocRB.hs_exit
+        PandocRb.hs_exit
       end
-      self.instance_variable_set :@PandocRB_loaded, true
+      self.instance_variable_set :@PandocRb_loaded, true
     end
 
     begin
-      in_format  = PandocRB::String.from_str in_format_str
-      out_format = PandocRB::String.from_str out_format_str
-      input      = PandocRB::String.from_str input_str
+      in_format  = PandocRb::String.from_str in_format_str
+      out_format = PandocRb::String.from_str out_format_str
+      input      = PandocRb::String.from_str input_str
 
       result_pointer  = self.convert_hs in_format, out_format, input
-      success, result = PandocRB::Return.get_result result_pointer
+      success, result = PandocRb::Return.get_result result_pointer
       unless success
         if    /^Unknown reader: / === result
           raise ArgumentError, result
         elsif /^Unknown writer: / === result
           raise ArgumentError, result
+        elsif /^Pandoc timed out/ === result
+          raise Timeout::Error
+        elsif /^Pandoc internal / === result
+          raise PandocRb::Error, result.sub(/^Pandoc internal error: /, '')
         end
         result = JSON.parse result
         if    result['tag'] == 'ParseFailure'
-          raise PandocRB::ParseFailure.new(result['contents'])
+          raise PandocRb::ParseFailure.new(result['contents'])
         elsif result['tag'] == 'ParsecError'
-          raise PandocRB::ParsecError.new( result['contents'])
+          raise PandocRb::ParsecError.new( result['contents'])
         else
           raise "Unknown error type returned from pandoc: #{result}"
         end
@@ -80,15 +86,13 @@ module PandocRB
 end
 
 
-class PandocRB::Return
+class PandocRb::Return
   def self.get_result(result_pointer)
     result     = self.new result_pointer
     result_str = result[:str_ptr].read_string_length result[:length]
     result_str.force_encoding "utf-8"
     success    = result[:success]
-    p 'freeing'
-    PandocRB.freeResult result_pointer
-    p 'freed'
+    PandocRb.freeResult result_pointer
     [success == 1, result_str]
   end
 end

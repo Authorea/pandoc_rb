@@ -1,11 +1,14 @@
 require 'ffi'
 
-module PandocRB
+module PandocRb
   class String < FFI::Struct
     layout :str_ptr, :pointer,
            :length,  :long
 
     def self.from_str(string)
+      unless string.encoding == Encoding::UTF_8
+        raise ArgumentError, "Expected an input encoded with UTF-8, got one encoded with: #{string.encoding}"
+      end
       new_hs_string = self.new
       new_hs_string[:str_ptr] = FFI::MemoryPointer.from_string string
       new_hs_string[:length]  = string.bytesize
