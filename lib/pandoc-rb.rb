@@ -51,44 +51,47 @@ module PandocRb
       @PandocRb_loaded = true
     end
 
+    if in_format_str.to_s == 'docx'
+      input_str.force_encoding("UTF-8")
+    end
+
     begin
-      in_format     = PandocRb::String.from_str in_format_str.to_s.encode("UTF-8")
-      out_format    = PandocRb::String.from_str out_format_str.to_s.encode("UTF-8")
-      input         = PandocRb::String.from_str input_str
-      extract_media = PandocRb::String.from_str extract_media_path.to_s.encode("UTF-8")
+      @in_format     = PandocRb::String.from_str in_format_str.to_s.encode("UTF-8")
+      @out_format    = PandocRb::String.from_str out_format_str.to_s.encode("UTF-8")
+      @input         = PandocRb::String.from_str input_str
+      @extract_media = PandocRb::String.from_str extract_media_path.to_s.encode("UTF-8")
 
-      result_pointer  = self.convert_hs in_format, out_format, input, extract_media
-      result_pointer.autorelease = false
+      @result_pointer  = self.convert_hs @in_format, @out_format, @input, @extract_media
 
-      result     = PandocRb::Return.new result_pointer
-      result.to_ptr.autorelease = false
-      result_str = result[:str_ptr].read_string_length result[:length]
-      result[:str_ptr].autorelease = false
+      @result     = PandocRb::Return.new @result_pointer
+      result_str = @result[:str_ptr].read_string_length @result[:length]
       result_str.force_encoding "utf-8"
 
-      in_format.str_mem_ptr.free
-      out_format.str_mem_ptr.free
-      # input.str_mem_ptr.free # THIS KILLS THE PROGRAM!
-      extract_media.str_mem_ptr.free
+      self.raise_exception result_str unless (@result[:success] == 1)
+      result_str
+    ensure
+      @result_pointer&.autorelease       = false
+      @result&.to_ptr&.autorelease       = false
+      @result&.[](:str_ptr)&.autorelease = false
 
-      in_format.to_ptr.free
-      out_format.to_ptr.free
-      input.to_ptr.free
-      extract_media.to_ptr.free
+      @in_format&.str_mem_ptr&.free
+      @out_format&.str_mem_ptr&.free
+      # @input&.str_mem_ptr&.free # THIS KILLS THE PROGRAM!
+      @extract_media&.str_mem_ptr&.free
 
-      success = result[:success] == 1
+      @in_format&.to_ptr&.free
+      @out_format&.to_ptr&.free
+      @input&.to_ptr&.free
+      @extract_media&.to_ptr&.free
 
       # Suppress warnings
       original_verbose, $VERBOSE = $VERBOSE, nil
 
-      result[:str_ptr].free
-      result_pointer.free
+      @result&.[](:str_ptr)&.free
+      @result_pointer&.free
 
       # renable warnings
       $VERBOSE = original_verbose
-
-      self.raise_exception result_str unless success
-      result_str
     end
   end
 
