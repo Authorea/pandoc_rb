@@ -12,7 +12,7 @@ task :default => :test
 
 task :build_hs do
   puts "beginning to build haskell library"
-  unless Dir.chdir(__dir__){ system "stack ghc -- -Wall -fno-warn-orphans -O3 -split-objs --make -no-hs-main -optc-O3 -optl '' -o Text_Pandoc_C.so src/Text/Pandoc/C.hs" }
+  unless Dir.chdir(__dir__){ system "stack ghc -- -Wall -fno-warn-orphans -O3 -split-objs --make -no-hs-main -optc-O3 -optl '-shared' -o Text_Pandoc_C.so src/Text/Pandoc/C.hs" }
     raise "stack build failed"
   end
 
