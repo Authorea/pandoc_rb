@@ -11,7 +11,7 @@ TODO: Delete this and the text above, and describe your gem
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'pandoc_rb'
+gem 'pandoc-rb'
 ```
 
 And then execute:
@@ -20,7 +20,7 @@ And then execute:
 
 Or install it yourself as:
 
-    $ gem install pandoc_rb
+    $ gem install pandoc-rb
 
 ## Usage
 

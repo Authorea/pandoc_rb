@@ -4,10 +4,10 @@ end
 # coding: utf-8
 lib = File.expand_path("../lib", __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require "pandoc_rb/version"
+require "pandoc-rb/version"
 
 Gem::Specification.new do |spec|
-  spec.name          = "pandoc_rb"
+  spec.name          = "pandoc-rb"
   spec.version       = PandocRb::VERSION
   spec.authors       =  ["Michael Klein"]
   spec.email         =  ['lambdamichael@gmail.com']

@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    pandoc_rb (0.1.0)
+    pandoc-rb (0.1.0)
       ffi (~> 1.9.18)
 
 GEM
@@ -28,7 +28,7 @@ PLATFORMS
 DEPENDENCIES
   bundler (~> 1.15)
   minitest (~> 5.0)
-  pandoc_rb!
+  pandoc-rb!
   pry
   pry-byebug
   rake (~> 10.0)

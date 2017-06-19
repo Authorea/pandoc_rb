@@ -1,4 +1,4 @@
 source "https://rubygems.org"
 
-# Specify your gem's dependencies in pandoc_rb.gemspec
+# Specify your gem's dependencies in pandoc-rb.gemspec
 gemspec
