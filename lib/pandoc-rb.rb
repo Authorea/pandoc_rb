@@ -13,10 +13,11 @@ require 'timeout'
 
 module PandocRb
   extend FFI::Library
-  unless File.exist? File.expand_path("Text_Pandoc_C.so")
+  unless File.exist? File.expand_path("#{__dir__}/Text_Pandoc_C.so")
+    binding.pry
     raise "File does not exist"
   end
-  ffi_lib File.expand_path("Text_Pandoc_C.so")
+  ffi_lib File.expand_path("#{__dir__}/Text_Pandoc_C.so")
   attach_function :hs_init, [:pointer, :pointer], :void
   attach_function :convert_hs, [PandocRb::String, PandocRb::String, PandocRb::String, PandocRb::String], PandocRb::Return
   attach_function :hs_exit, [], :void

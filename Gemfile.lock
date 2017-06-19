@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    pandoc-rb (0.1.0)
+    pandoc-rb (0.1.1)
       ffi (~> 1.9.18)
 
 GEM

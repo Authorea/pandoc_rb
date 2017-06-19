@@ -24,6 +24,7 @@
 /coverage/
 /doc/
 /lib/bundler/man/
+/lib/Text_Pandoc_C.so
 /pkg/
 /rdoc/
 /spec/examples.txt
