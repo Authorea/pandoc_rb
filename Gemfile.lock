@@ -7,6 +7,7 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
+    byebug (9.0.6)
     coderay (1.1.1)
     ffi (1.9.18)
     method_source (0.8.2)
@@ -15,6 +16,9 @@ GEM
       coderay (~> 1.1.0)
       method_source (~> 0.8.1)
       slop (~> 3.4)
+    pry-byebug (3.4.2)
+      byebug (~> 9.0)
+      pry (~> 0.10)
     rake (10.5.0)
     slop (3.6.0)
 
@@ -26,7 +30,8 @@ DEPENDENCIES
   minitest (~> 5.0)
   pandoc_rb!
   pry
+  pry-byebug
   rake (~> 10.0)
 
 BUNDLED WITH
-   1.15.0
+   1.15.1
