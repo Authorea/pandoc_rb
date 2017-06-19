@@ -17,5 +17,6 @@ before_install:
 - stack setup
 
 install:
+- stack build
 - bundle install
 - bundle exec rake build
