@@ -51,8 +51,8 @@ module PandocRb
     end
 
     begin
-      in_format     = PandocRb::String.from_str in_format_str
-      out_format    = PandocRb::String.from_str out_format_str
+      in_format     = PandocRb::String.from_str in_format_str.to_s
+      out_format    = PandocRb::String.from_str out_format_str.to_s
       input         = PandocRb::String.from_str input_str
       extract_media = PandocRb::String.from_str extract_media_path.to_s
 
