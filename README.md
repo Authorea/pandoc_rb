@@ -1,4 +1,6 @@
-Required haskell-stack
+[![Build Status](https://travis-ci.org/michaeljklein/pandoc-rb.svg?branch=master)](https://travis-ci.org/michaeljklein/pandoc-rb)
+
+Requires haskell-stack
 
 # PandocRb
 
