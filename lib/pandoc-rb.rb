@@ -52,10 +52,10 @@ module PandocRb
     end
 
     begin
-      in_format     = PandocRb::String.from_str in_format_str.to_s
-      out_format    = PandocRb::String.from_str out_format_str.to_s
+      in_format     = PandocRb::String.from_str in_format_str.to_s.encode("UTF-8")
+      out_format    = PandocRb::String.from_str out_format_str.to_s.encode("UTF-8")
       input         = PandocRb::String.from_str input_str
-      extract_media = PandocRb::String.from_str extract_media_path.to_s
+      extract_media = PandocRb::String.from_str extract_media_path.to_s.encode("UTF-8")
 
       result_pointer  = self.convert_hs in_format, out_format, input, extract_media
       result_pointer.autorelease = false
