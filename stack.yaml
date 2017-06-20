@@ -38,7 +38,7 @@ resolver: lts-8.12
 packages:
 - '.'
 - location:
-    git: git@github.com:Authorea/pandoc.git
+    git: https://github.com/Authorea/pandoc.git
     commit: 1303092cdfcc3b6f13ab8d2996b6d3c3465279f2
   extra-dep: true
 # Dependency packages to be pulled from upstream that are not in the resolver
