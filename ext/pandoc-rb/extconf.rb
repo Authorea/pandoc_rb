@@ -1,5 +1,5 @@
 
-if `which stack`.blank?
+if `which stack`.empty?
   puts "installing stack"
   unless system "curl -sSL https://get.haskellstack.org/ | sh"
     raise "installing stack failed"
