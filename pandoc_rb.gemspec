@@ -24,7 +24,7 @@ Gem::Specification.new do |spec|
       "public gem pushes."
   end
 
-  spec.files         = `git ls-files -z`.split("\x0").reject do |f|
+  spec.files         = `git ls-files -z`.split("\n").reject do |f|
     f.match(%r{^(test|spec|features)/}) || f.match(/\.(so|o)$/)
   end
   spec.bindir        = "exe"
