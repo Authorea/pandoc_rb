@@ -3,10 +3,15 @@ require 'mkmf'
 require 'pry'
 require 'open3'
 
+
 def system_indent(command)
   puts "running #{command}"
   exit_status = system command
-  puts "ran #{command}"
+  if exit_status
+    puts "ran #{command}"
+  else
+    puts ["failed:", "<command>", command.split(' '), "</command>"].flatten
+  end
   exit_status
 end
 
@@ -14,15 +19,18 @@ system_indent 'stack build'
 
 def stack_path
   @stack_path ||= begin
-    temp_stack_path = `stack path`.lines.map do |line|
-      /^(?<var>[^:]+): (?<val>.*)$/ =~ line.chomp
-      [var, val]
-    end.to_h
-    temp_stack_path['compiler-lib'] = temp_stack_path['compiler-bin'].sub(/bin$/, 'lib')
-    temp_stack_path['compiler'] = temp_stack_path['compiler-bin'].sub(/^.*\/([^\/]+)\/bin$/, '\1')
-    temp_stack_path
+    Dir.chdir(__dir__) do
+      temp_stack_path = `stack path`.lines.map do |line|
+        /^(?<var>[^:]+): (?<val>.*)$/ =~ line.chomp
+        [var, File.absolute_path(val)]
+      end.to_h
+      temp_stack_path['compiler-lib'] = temp_stack_path['compiler-bin'].sub(/bin$/, 'lib')
+      temp_stack_path['compiler'] = temp_stack_path['compiler-bin'].sub(/^.*\/([^\/]+)\/bin$/, '\1')
+      temp_stack_path
+    end
   end
 end
+
 
 # Give it a name
 extension_name = 'pandoc_rb'
@@ -89,7 +97,7 @@ build_command = [ "gcc",
                   "-o",
                   "pandoc_rb.o",
                   "-c",
-                  "pandoc_rb.c"].join(' ')
+                  "#{__dir__}/pandoc_rb.c"].join(' ')
 
 unless system_indent(build_command)
   raise "build failed"

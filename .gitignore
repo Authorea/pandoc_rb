@@ -10,6 +10,7 @@
 *.o
 *.prof
 *.rbc
+*.swp
 .HTF/
 .cabal-sandbox/
 .hpc
