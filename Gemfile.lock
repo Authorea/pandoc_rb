@@ -1,17 +1,15 @@
 PATH
   remote: .
   specs:
-    pandoc-rb (0.1.1)
-      ffi (~> 1.9.18)
+    pandoc_rb (0.2.1)
 
 GEM
   remote: https://rubygems.org/
   specs:
     byebug (9.0.6)
     coderay (1.1.1)
-    ffi (1.9.18)
     method_source (0.8.2)
-    minitest (5.10.2)
+    minitest (5.8.3)
     pry (0.10.4)
       coderay (~> 1.1.0)
       method_source (~> 0.8.1)
@@ -26,12 +24,12 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  bundler (~> 1.15)
+  bundler (~> 1.12.5)
   minitest (~> 5.0)
-  pandoc-rb!
+  pandoc_rb!
   pry
   pry-byebug
   rake (~> 10.0)
 
 BUNDLED WITH
-   1.15.1
+   1.12.5
