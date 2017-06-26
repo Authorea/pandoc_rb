@@ -17,3 +17,15 @@ end
 desc "Run tests"
 task :default => :test
 
+task :nuke do
+  Dir.chdir(__dir__) do
+    FileUtils.rm_rf 'tmp'
+    FileUtils.rm_rf 'ext/pandoc_rb/.stack-work'
+    FileUtils.rm_f  'ext/pandoc_rb/a.out'
+    Dir['**/*.so'].each do |so|
+      FileUtils.rm_f so
+    end
+  end
+end
+
+
