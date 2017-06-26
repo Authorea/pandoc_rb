@@ -4,6 +4,25 @@ require 'pry'
 require 'open3'
 
 
+module OS
+  def OS.windows?
+    (/cygwin|mswin|mingw|bccwin|wince|emx/ =~ RUBY_PLATFORM) != nil
+  end
+
+  def OS.mac?
+   (/darwin/ =~ RUBY_PLATFORM) != nil
+  end
+
+  def OS.unix?
+    !OS.windows?
+  end
+
+  def OS.linux?
+    OS.unix? and not OS.mac?
+  end
+end
+
+
 def system_indent(command)
   puts "running #{command}"
   exit_status = system command
@@ -101,7 +120,7 @@ $LDFLAGS += " -I#{File.join(stack_path['compiler-lib'], stack_path['compiler'], 
 $LDFLAGS += " -I#{File.join(stack_path['dist-dir'], "build/PandocRb.dylib/PandocRb.dylib-tmp")}" # PandocRb_stub.h
 $LDFLAGS += " -L#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}"
 $LDFLAGS += " -Wl,-rpath,'#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}'"
-$LDFLAGS += " -Wl,-R'#{File.join(stack_path['local-install-root'], "bin")}'"
+$LDFLAGS += " -Wl,-R'#{File.join(stack_path['local-install-root'], "bin")}'" unless OS.mac?
 $LDFLAGS += " -Wl,-rpath,'#{File.join(stack_path['local-install-root'], "bin")}'"
 $LDFLAGS += " -lHSrts-ghc8.0.2"
 

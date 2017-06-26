@@ -2,9 +2,7 @@ require "bundler/gem_tasks"
 require "rake/testtask"
 require 'rake/extensiontask'
 
-Rake::ExtensionTask.new 'pandoc_rb'
-
-Rake::ExtensionTask.new "pandoc_rb" do |ext|
+Rake::ExtensionTask.new 'pandoc_rb', $gemspec do |ext|
   ext.lib_dir = "lib/pandoc_rb"
 end
 
