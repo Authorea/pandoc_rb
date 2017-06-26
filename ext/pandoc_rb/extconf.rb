@@ -6,7 +6,7 @@ require 'open3'
 
 def system_indent(command)
   puts "running #{command}"
-  exit_status = system command
+  exit_status = Dir.chdir(__dir__){ system command }
   if exit_status
     puts "ran #{command}"
   else
