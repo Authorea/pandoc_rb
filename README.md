@@ -28,16 +28,23 @@ The public interface consists of constants and a main conversion function
 
 The constants include:
 ```ruby
-PandocRb::Version -- The current version
-PandocRb::Readers -- A list of allowed readers
-PandocRb::Writers -- A list of allowed writers
+PandocRb::Version # The current version
+PandocRb::Readers # A list of allowed readers
+PandocRb::Writers # A list of allowed writers
 ```
 
 And the main conversion function is:
 ```ruby
+# General conversion function
 PandocRb.convert input_format, output_format, input_string, (optional) extract_media_path
+
+# Convert `markdown` to `latex`
 PandocRb.convert 'markdown', 'latex', '_italic text_'
+
+# Convert `docx` to `latex` from file
 PandocRb.convert 'docx', 'latex', File.binread('some_doc.docx'), `extract/figures/dir`
+
+# Convert `markdown` to `docx`, writing to a `docx` file
 File.open 'some_doc.docx', 'wb' do |file|
   file.write PandocRb.convert('markdown', 'docx', '_italic text_')
 end
