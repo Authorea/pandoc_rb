@@ -6,7 +6,7 @@ require 'open3'
 
 def system_indent(command)
   puts "running #{command}"
-  exit_status = Dir.chdir(__dir__){ system command }
+  exit_status = system command
   if exit_status
     puts "ran #{command}"
   else
@@ -16,9 +16,9 @@ def system_indent(command)
   exit_status
 end
 
-system_indent 'stack setup'
+Dir.chdir(__dir__){ system_indent 'stack setup' }
 
-system_indent 'stack build'
+Dir.chdir(__dir__){ system_indent 'stack build' }
 
 def stack_path
   @stack_path ||= begin
@@ -36,7 +36,7 @@ end
 
 
 # Give it a name
-extension_name = 'pandoc_rb'
+extension_name = 'pandoc_rb/pandoc_rb'
 
 LIBDIR      = ::CONFIG['libdir']
 INCLUDEDIR  = ::CONFIG['includedir']
@@ -100,24 +100,12 @@ $LDFLAGS  = File.join(stack_path['local-install-root'], "bin/PandocRb.dylib") + 
 $LDFLAGS += " -I#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "include")}" # HsFFI.h
 $LDFLAGS += " -I#{File.join(stack_path['dist-dir'], "build/PandocRb.dylib/PandocRb.dylib-tmp")}" # PandocRb_stub.h
 $LDFLAGS += " -L#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}"
-$LDFLAGS += "-Wl,-rpath,'#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}'"
-$LDFLAGS += "-Wl,-R'#{File.join(stack_path['local-install-root'], "bin")}'"
-$LDFLAGS += "-Wl,-rpath,'#{File.join(stack_path['local-install-root'], "bin")}'"
+$LDFLAGS += " -Wl,-rpath,'#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}'"
+$LDFLAGS += " -Wl,-R'#{File.join(stack_path['local-install-root'], "bin")}'"
+$LDFLAGS += " -Wl,-rpath,'#{File.join(stack_path['local-install-root'], "bin")}'"
 $LDFLAGS += " -lHSrts-ghc8.0.2"
 
-create_makefile 'pandoc_rb/pandoc_rb'
+create_makefile extension_name
 
 system_indent 'make'
-
-begin
-  require Dir.chdir(__dir__){ File.absolute_path('pandoc_rb') }
-  PandocRb.convert_init
-  if y = PandocRb.convert_raw('markdown', 'latex', '- hi\n-there!', '')
-    PandocRb.convert_exit
-    puts "build succeeded"
-  else
-    PandocRb.convert_exit
-    raise "the build steps succeeded, but the resulting file does not work"
-  end
-end
 
