@@ -15,7 +15,7 @@ import Data.Aeson                 (ToJSON(..), genericToEncoding, defaultOptions
 import Data.Bifunctor             (bimap, second)
 import Data.ByteString.Lazy       (toStrict, fromStrict)
 import Data.ByteString            (useAsCStringLen)
-import Data.ByteString.Unsafe     (unsafePackMallocCStringLen, unsafeFinalize)
+import Data.ByteString.Unsafe     (unsafePackMallocCStringLen, unsafePackCStringLen, unsafeFinalize)
 import Data.Monoid                ((<>))
 import Foreign.C.String           (CStringLen, peekCStringLen, newCStringLen)
 import Foreign.C.Types            (CChar, CLong(..), CInt(..))
@@ -33,8 +33,6 @@ import System.Timeout             (timeout)
 import Control.Concurrent
 
 
-
-
 -- | The `Reader` type modified for foreign C exports
 type CReader = ReaderOptions -> CStringLen -> EitherT CStringLen IO (Pandoc, MediaBag)
 
@@ -44,7 +42,7 @@ type CWriter = WriterOptions -> Pandoc -> EitherT CStringLen IO CStringLen
 
 -- | Apply a monadic action to the left of an `EitherT`
 mapML :: Monad m => (a -> m b) -> EitherT a m c -> EitherT b m c
-mapML f (EitherT m) = EitherT $ do
+mapML !f !(EitherT m) = EitherT $ do
   m' <- m
   case m' of
     ( Left  x) ->     Left  <$> f x
@@ -52,7 +50,7 @@ mapML f (EitherT m) = EitherT $ do
 
 -- | Apply a monadic action to the right of an `EitherT`
 mapMR :: Monad m => (b -> m c) -> EitherT a m b -> EitherT a m c
-mapMR f (EitherT m) = EitherT $ do
+mapMR !f !(EitherT m) = EitherT $ do
   m' <- m
   case m' of
     ( Left  x) -> return $ Left      x
@@ -64,7 +62,7 @@ mapMR f (EitherT m) = EitherT $ do
 --
 -- timeoutEitherT is strict within the created thread
 timeoutEitherT :: Int -> EitherT CStringLen IO b -> EitherT CStringLen IO b
-timeoutEitherT us (EitherT io) = EitherT $ do
+timeoutEitherT !us !(EitherT io) = EitherT $ do
   mvar   <- newEmptyMVar
   tid    <- io `forkFinally` (putMVar mvar $!)
   result <- timeout us (takeMVar mvar)
@@ -113,41 +111,40 @@ showPandocError = flip useAsCStringLen return . toStrict . encode
 
 -- | Convert a `Reader` to a `CReader`
 mkCReader :: Reader -> CReader
-mkCReader  (StringReader     reader) opts cstr = mapML showPandocError . EitherT $ do
+mkCReader  !(StringReader     reader) !opts !cstr = mapML showPandocError . EitherT $ do
   str          <- peekCStringLen cstr
   readerResult <- reader opts str
   return $ second (, mempty) $! readerResult
 mkCReader ~(ByteStringReader reader) opts  str = mapML showPandocError . EitherT $ do
-  bs           <- unsafePackMallocCStringLen str
+  bs           <- unsafePackCStringLen str
   readerResult <- reader opts $! fromStrict bs
-  readerResult `seq` unsafeFinalize bs
   return readerResult
 
 
 -- | Convert a `Writer` to a `CWriter`
 mkCWriter :: Writer -> CWriter
-mkCWriter  (PureStringWriter   writer) opts pandoc = lift $ newCStringLen $ writer opts pandoc
-mkCWriter  (IOStringWriter     writer) opts pandoc = lift $ writer opts pandoc >>= newCStringLen
-mkCWriter ~(IOByteStringWriter writer) opts pandoc = lift $ writer opts pandoc >>= flip useAsCStringLen return . toStrict
+mkCWriter !(PureStringWriter   writer) !opts !pandoc = lift $ newCStringLen (writer opts pandoc)
+mkCWriter !(IOStringWriter     writer) !opts !pandoc = lift $ writer opts pandoc >>= newCStringLen
+mkCWriter !(IOByteStringWriter writer) !opts !pandoc = lift $ writer opts pandoc >>= flip useAsCStringLen return . toStrict
 
 -- | `getReader` for foreign C exports. Retrieve reader based on formatSpec (format+extensions).
 getCReader :: CStringLen -> EitherT CStringLen IO CReader
-getCReader cstr = do
-  str <- lift . peekCStringLen $ cstr
+getCReader !cstr = do
+  str <- lift . peekCStringLen $! cstr
   EitherT $ case getReader str of
     ( Left  err   ) ->     Left  <$> newCStringLen err
-    ~(Right reader) -> return . Right $ mkCReader reader
+    ~(Right reader) -> return . Right $! mkCReader reader
 
 -- | `getWriter` for foreign C exports. Retrieve writer based on formatSpec (format+extensions).
 getCWriter :: CStringLen -> EitherT CStringLen IO CWriter
-getCWriter cstr = do
-  str <- lift . peekCStringLen $ cstr
+getCWriter !cstr = do
+  str <- lift $ peekCStringLen cstr
   EitherT $ case getWriter str of
     ( Left  err   ) ->      Left <$> newCStringLen err
-    ~(Right writer) -> return . Right $ mkCWriter writer
+    ~(Right writer) -> return . Right $! mkCWriter writer
 
 extractCMediabag :: Bool -> CStringLen -> MediaBag -> EitherT CStringLen IO ()
-extractCMediabag verbose cPath mediaBag = do
+extractCMediabag !verbose !cPath !mediaBag = do
   path <- lift . peekCStringLen $ cPath
   case path of
     []           -> return ()
@@ -164,11 +161,11 @@ convert :: ReaderOptions
         -> CStringLen                       -- ^ Input
         -> CStringLen                       -- ^ Extract media dir
         -> EitherT CStringLen IO CStringLen -- ^ Either an error string or the output
-convert readerOpts writerOpts readerStr writerStr input mediaBagStr = do
-  reader             <- getCReader readerStr
-  (pandoc, mediaBag) <- reader readerOpts input
+convert !readerOpts !writerOpts !readerStr !writerStr !input !mediaBagStr = do
+  reader             <- getCReader $! readerStr
+  (pandoc, mediaBag) <- reader readerOpts $! input
   extractCMediabag False mediaBagStr mediaBag
-  writer             <- getCWriter writerStr
+  writer             <- getCWriter $! writerStr
   let writerOpts'    = writerOpts { writerMediaBag = writerMediaBag writerOpts <> mediaBag }
   writer writerOpts' pandoc
 
@@ -183,22 +180,14 @@ writerOptions = def { writerHTMLMathMethod = MathJax "https://fail.cdnjs.cloudfl
 -- | `CStringLen` for use by Ruby
 type RStringLen = (Ptr CChar, CLong)
 
--- -- | Free the resulting type of `convert_hs`
--- freeResult :: Ptr () -> IO ()
--- freeResult !addr = do
---   (_, strAddr, _) <- peek (castPtr addr :: Ptr (CInt, Ptr CChar, CLong))
---   free strAddr
---   free addr
-
--- foreign export ccall freeResult :: Ptr () -> IO ()
 
 -- | Takes: reader, writer, input and returns (isSuccess, output pointer, output length)
-convert_hs :: Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> IO (Ptr (CInt, Ptr CChar, CLong))
-convert_hs readerStr writerStr input mediaBagStr = do
-  readerStr'                        <- second fromEnum <$> peek readerStr
-  writerStr'                        <- second fromEnum <$> peek writerStr
-  input'                            <- second fromEnum <$> peek input
-  mediaBagStr'                      <- second fromEnum <$> peek mediaBagStr
+convert_hs :: Ptr CChar -> CLong -> Ptr CChar -> CLong -> Ptr CChar -> CLong -> Ptr CChar -> CLong -> IO (Ptr (CInt, Ptr CChar, CLong))
+convert_hs !readerStr !readerLen !writerStr !writerLen !input !inputLen !mediaBagStr !mediaBagLen = do
+  let readerStr'                    =  (readerStr  , fromEnum readerLen  )
+  let writerStr'                    =  (writerStr  , fromEnum writerLen  )
+  let input'                        =  (input      , fromEnum inputLen   )
+  let mediaBagStr'                  =  (mediaBagStr, fromEnum mediaBagLen)
   let converted                     =  convert readerOptions writerOptions readerStr' writerStr' input' mediaBagStr'
   let EitherT safeConverted         =  timeoutEitherT (10 * {- minutes -} 60000000) converted
   result                            <- bimap (second toEnum) (second toEnum) <$> safeConverted
@@ -207,23 +196,7 @@ convert_hs readerStr writerStr input mediaBagStr = do
   addr `poke` (success, rstrPtr, rstrLen)
   return addr
 
-foreign export ccall convert_hs :: Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> Ptr RStringLen -> IO (Ptr (CInt, Ptr CChar, CLong))
-
-new_rstringlen :: Ptr CChar -> CLong -> IO (Ptr RStringLen)
-new_rstringlen ptr len = do
-  addr <- malloc
-  addr `poke` (ptr, len)
-  return addr
-
-foreign export ccall new_rstringlen :: Ptr CChar -> CLong -> IO (Ptr RStringLen)
-
-free_rstringlen :: Ptr RStringLen -> IO ()
-free_rstringlen addr = do
-  (ptr, _) <- peek addr
-  free ptr
-  free addr
-
-foreign export ccall free_rstringlen :: Ptr RStringLen -> IO ()
+foreign export ccall convert_hs :: Ptr CChar -> CLong -> Ptr CChar -> CLong -> Ptr CChar -> CLong -> Ptr CChar -> CLong -> IO (Ptr (CInt, Ptr CChar, CLong))
 
 result_success :: Ptr (CInt, Ptr CChar, CLong) -> IO CInt
 result_success addr = do
@@ -248,46 +221,10 @@ foreign export ccall result_len :: Ptr (CInt, Ptr CChar, CLong) -> IO CLong
 
 free_result :: Ptr (CInt, Ptr CChar, CLong) -> IO ()
 free_result addr = do
-  (_, ptr, _) <- peek addr
-  free ptr
+  -- (_, ptr, _) <- peek addr -- this is commented out because ruby manages it
+  -- free ptr
   free addr
+  return ()
 
 foreign export ccall free_result :: Ptr (CInt, Ptr CChar, CLong) -> IO ()
-
-
-
-
-
--- -- | Dummy main to dissuade the compiler from warning a lack of @_main@
--- main :: IO CInt
--- main = print "hi there! I'm main. you probably shouldn't see me." >> return 0
-
--- foreign export ccall main :: IO CInt
-
-
--- {-# LANGUAGE ForeignFunctionInterface #-}
--- 
--- module PandocRb where
--- 
--- import Foreign.C.Types
--- import Data.List
--- import Text.Pandoc
--- import Control.Monad.Trans.Either
--- 
--- foreign export ccall foo :: CInt -> IO CInt
--- 
--- foo :: CInt -> IO CInt
--- foo n = return (genericLength (f n))
--- 
--- f :: CInt -> [CInt]
--- f 0 = []
--- f n = n:(f (n-1))
--- 
--- foreign export ccall bar :: CInt -> IO CInt
--- 
--- bar :: CInt -> IO CInt
--- bar n = return $ either (const 0) (genericLength . writeLaTeX def) (readMarkdown def ([1..n] >> "- hi\n"))
--- 
--- main :: IO ()
--- main = putStrLn "you shouldn't see me"
 

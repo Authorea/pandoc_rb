@@ -7,9 +7,12 @@
 *.gem
 *.hi
 *.hp
+*.log
 *.o
+*.out
 *.prof
 *.rbc
+*.so
 *.swp
 .HTF/
 .cabal-sandbox/
@@ -24,8 +27,9 @@
 /_yardoc/
 /coverage/
 /doc/
-/lib/bundler/man/
+/ext/pandoc_rb/Makefile
 /lib/Text_Pandoc_C.so
+/lib/bundler/man/
 /pkg/
 /rdoc/
 /spec/examples.txt
@@ -39,4 +43,3 @@ cabal.project.local
 cabal.sandbox.config
 dist
 dist-*
-

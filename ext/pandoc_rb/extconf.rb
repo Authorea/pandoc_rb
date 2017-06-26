@@ -11,9 +11,12 @@ def system_indent(command)
     puts "ran #{command}"
   else
     puts ["failed:", "<command>", command.split(' '), "</command>"].flatten
+    raise "#{command} failed"
   end
   exit_status
 end
+
+system_indent 'stack setup'
 
 system_indent 'stack build'
 
@@ -39,6 +42,9 @@ LIBDIR      = ::CONFIG['libdir']
 INCLUDEDIR  = ::CONFIG['includedir']
 
 HEADER_DIRS = [
+  File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts"),
+  File.join(stack_path['local-install-root'], "bin"),
+
   # /home/hsolo/.stack/programs/x86_64-linux/ghc-8.0.2/lib/ghc-8.0.2/include/
   File.join(stack_path['compiler-lib'], stack_path['compiler'], "include"),
 
@@ -59,6 +65,8 @@ LIB_DIRS = [
   # /home/hsolo/.stack/programs/x86_64-linux/ghc-8.0.2/lib/ghc-8.0.2/rts/
   File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts"),
   File.join(stack_path['local-install-root'], "bin"),
+  File.join(stack_path['dist-dir'], "build/PandocRb.dylib/PandocRb.dylib-tmp"), # PandocRb_stub.h
+  File.join(stack_path['compiler-lib'], stack_path['compiler'], "include"),
 
   # First search /opt/local for macports
   '/opt/local/lib',
@@ -80,92 +88,36 @@ have_header 'ruby.h'
 have_header 'HsFFI.h'
 have_header 'PandocRb_stub.h', 'HsFFI.h'
 find_library 'HSrts-ghc8.0.2', nil
+find_library 'PandocRb', nil
 
-build_command = [ "gcc",
-                  File.join(stack_path['local-install-root'], "bin/PandocRb.dylib"),
-                  "-I#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "include")}", # HsFFI.h
-                  "-I#{File.join(stack_path['dist-dir'], "build/PandocRb.dylib/PandocRb.dylib-tmp")}", # PandocRb_stub.h
-                  "-L#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}",
-                  "-lHSrts-ghc8.0.2",
-                  "#$INCFLAGS".gsub(/\$\(arch_hdrdir\)/, $arch_hdrdir).gsub(/\$\(hdrdir\)/, $hdrdir).gsub(/\$\(srcdir\)/, $srcdir),
-                  "-fPIC",
-                  "-O3",
-                  "-fno-fast-math",
-                  "-ggdb3",
-                  "#$warnflags",
-                  "-fPIC",
-                  "-o",
-                  "pandoc_rb.o",
-                  "-c",
-                  "#{__dir__}/pandoc_rb.c"].join(' ')
+$INCFLAGS  = File.join(stack_path['local-install-root'], "bin/PandocRb.dylib") + ' ' + $INCFLAGS
+$INCFLAGS += " -I#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "include")}" # HsFFI.h
+$INCFLAGS += " -I#{File.join(stack_path['dist-dir'], "build/PandocRb.dylib/PandocRb.dylib-tmp")}" # PandocRb_stub.h
+$INCFLAGS += " -L#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}"
+$INCFLAGS += " -lHSrts-ghc8.0.2"
 
-unless system_indent(build_command)
-  raise "build failed"
-end
+$LDFLAGS  = File.join(stack_path['local-install-root'], "bin/PandocRb.dylib") + ' ' + $LDFLAGS
+$LDFLAGS += " -I#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "include")}" # HsFFI.h
+$LDFLAGS += " -I#{File.join(stack_path['dist-dir'], "build/PandocRb.dylib/PandocRb.dylib-tmp")}" # PandocRb_stub.h
+$LDFLAGS += " -L#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}"
+$LDFLAGS += "-Wl,-rpath,'#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}'"
+$LDFLAGS += "-Wl,-R'#{File.join(stack_path['local-install-root'], "bin")}'"
+$LDFLAGS += "-Wl,-rpath,'#{File.join(stack_path['local-install-root'], "bin")}'"
+$LDFLAGS += " -lHSrts-ghc8.0.2"
 
-clean_command = "rm -f pandoc_rb.so"
+create_makefile 'pandoc_rb/pandoc_rb'
 
-unless system_indent(clean_command)
-  puts "nothing to clean"
-end
-
-prefix = mkintpath(CONFIG["prefix"])
-possible_dest_dir = if destdir = prefix[$dest_prefix_pattern, 1]
-  prefix = prefix[destdir.size..-1]
-  destdir
-else
- ''
-end
-
-link_command = [ "gcc",
-                 "-shared",
-                 "-o",
-                 "pandoc_rb.so",
-                 "pandoc_rb.o",
-                 File.join(stack_path['local-install-root'], "bin/PandocRb.dylib"),
-                 "-I#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "include")}", # HsFFI.h
-                 "-I#{File.join(stack_path['dist-dir'], "build/PandocRb.dylib/PandocRb.dylib-tmp")}", # PandocRb_stub.h
-                 "-L#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}",
-                 $LIBPATH.map{|x| "-L" + x}.join(' ').gsub(/\$\(exec_prefix\)/, "$(prefix)").gsub(/\$\(prefix\)/, with_destdir(prefix).unspace).gsub(/\$\(DESTDIR\)/, possible_dest_dir),
-                 $LDFLAGS,
-                 "-L.",
-                 File.join(stack_path['local-install-root'], "bin/PandocRb.dylib"),
-                 "-I#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "include")}", # HsFFI.h
-                 "-I#{File.join(stack_path['dist-dir'], "build/PandocRb.dylib/PandocRb.dylib-tmp")}", # PandocRb_stub.h
-                 "-L#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}",
-                 "-fstack-protector",
-                 "-rdynamic",
-                 "-Wl,-export-dynamic",
-                 "-Wl,-rpath,'${ORIGIN}/../lib'",
-                 "-Wl,-R'${ORIGIN}/../lib'",
-                 "-Wl,-R'#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}'",
-                 "-Wl,-rpath,'#{File.join(stack_path['compiler-lib'], stack_path['compiler'], "rts")}'",
-                 "-Wl,-R'#{File.join(stack_path['local-install-root'], "bin")}'",
-                 "-Wl,-rpath,'#{File.join(stack_path['local-install-root'], "bin")}'",
-                 "-lruby",
-                 "-lHSrts-ghc8.0.2",
-                 "-lpthread",
-                 "-ldl",
-                 "-lcrypt",
-                 "-lm",
-                 "-lc"].join(' ')
-
-unless system_indent(link_command)
-  raise "linking failed"
-end
+system_indent 'make'
 
 begin
-	require File.expand_path('pandoc_rb')
+  require Dir.chdir(__dir__){ File.absolute_path('pandoc_rb') }
   PandocRb.convert_init
-	if y = PandocRb.convert_raw('markdown', 'latex', '- hi\n-there!', '')
+  if y = PandocRb.convert_raw('markdown', 'latex', '- hi\n-there!', '')
     PandocRb.convert_exit
-  	puts "build succeeded"
+    puts "build succeeded"
   else
     PandocRb.convert_exit
     raise "the build steps succeeded, but the resulting file does not work"
   end
 end
-
-create_makefile 'pandoc_rb/pandoc_rb'
-
 

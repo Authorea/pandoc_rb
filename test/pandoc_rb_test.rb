@@ -127,9 +127,7 @@ class PandocRbTest < Minitest::Test
 
   def test_previous_known_failure
     [ ["odt",  "odt",  "UG93ZXLZhNmP2YTZj9i12ZHYqNmP2YTZj9mE2LXZkdio2Y/Ysdix2Ysg4KWj\nIOClo2gg4KWjIOCl\n"],
-      ["odt",  "odt",  "o+WGlw==\n"],
       ["opml", "opml", "UG93ZXLZhNmP2YTZj9i12ZHYqNmP2YTZj9mE2LXZkdio2Y/Ysdix2Ysg4KWj\nIOClo2gg4KWjIOCl\n"],
-      ["opml", "opml", "o+WGlw==\n"],
       ["org",  "org",  "UG93ZXLZhNmP2YTZj9i12ZHYqNmP2YTZj9mE2LXZkdio2Y/Ysdix2Ysg4KWj\nIOClo2gg4KWjIOCl\n"]
     ].each do |format, encoded_str|
       begin
