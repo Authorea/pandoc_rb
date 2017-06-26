@@ -2,6 +2,8 @@ language: ruby
 cache: bundler
 cache:
   directories:
+  - $HOME/.ghc
+  - $HOME/.cabal
   - $HOME/.stack
 sudo: required
 rvm:
