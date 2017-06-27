@@ -25,8 +25,9 @@ import Foreign.Storable           (peek, poke)
 import Foreign.Storable.Tuple     ()
 import GHC.Generics               (Generic)
 import Prelude hiding             (log)
-import Text.Pandoc                (ReaderOptions, Pandoc, WriterOptions(..), PandocError(..), Reader(..), Writer(..), HTMLMathMethod(..), writerMediaBag, getReader, getWriter, def)
-import Text.Pandoc.MediaBag       (MediaBag, extractMediaBag)
+import Text.Pandoc                (ReaderOptions, Pandoc, WriterOptions(..), PandocError(..), Reader(..), Writer(..), HTMLMathMethod(..), Inline(..), writerMediaBag, getReader, getWriter, def)
+import Text.Pandoc.MediaBag       (MediaBag, extractMediaBag, mediaDirectory)
+import Text.Pandoc.Walk           (walk)
 import Text.Parsec.Error          (ParseError, Message(..), errorPos, errorMessages)
 import Text.Parsec.Pos            (SourcePos, SourceName, Line, Column, sourceName, sourceLine, sourceColumn)
 import System.Timeout             (timeout)
@@ -143,12 +144,29 @@ getCWriter !cstr = do
     ( Left  err   ) ->      Left <$> newCStringLen err
     ~(Right writer) -> return . Right $! mkCWriter writer
 
-extractCMediabag :: Bool -> CStringLen -> MediaBag -> EitherT CStringLen IO ()
-extractCMediabag !verbose !cPath !mediaBag = do
-  path <- lift . peekCStringLen $ cPath
-  case path of
-    []           -> return ()
-    nonEmptyPath -> lift $ extractMediaBag verbose nonEmptyPath mediaBag
+-- | Taken from pandoc's executable, adjust the paths and extract the media to the given directory
+-- https://github.com/jgm/pandoc/blob/9849ba7fd744f529f063e0802a18fa18c8433eeb/src/Text/Pandoc/Class.hs#L385
+extractMedia :: MediaBag -> FilePath -> Pandoc -> IO Pandoc
+extractMedia media dir d =
+  case [fp | (fp, _, _) <- mediaDirectory media] of
+        []  -> return d
+        fps -> do
+          extractMediaBag True dir media
+          return $ walk (adjustImagePath dir fps) d
+
+-- | Also taken from pandoc's executable, adjust the image paths of inline elements
+adjustImagePath :: FilePath -> [FilePath] -> Inline -> Inline
+adjustImagePath dir paths (Image attr lab (src, tit))
+   | src `elem` paths = Image attr lab (dir ++ "/" ++ src, tit)
+adjustImagePath _ _ x = x
+
+-- | Extract the media bag to the given directory, unless it's empty
+extractCMediabag :: CStringLen -> MediaBag -> Pandoc -> EitherT CStringLen IO Pandoc
+extractCMediabag !(_, 0)  _        !pandoc = return pandoc
+extractCMediabag !cPath  !mediaBag !pandoc = do
+  nonEmptyPath <- lift $ peekCStringLen cPath
+  lift $ extractMedia mediaBag nonEmptyPath pandoc
+
 
 -- | The main conversion function.
 -- Takes `ReaderOptions`, `WriterOptions`, reader's formatSpec,
@@ -164,10 +182,10 @@ convert :: ReaderOptions
 convert !readerOpts !writerOpts !readerStr !writerStr !input !mediaBagStr = do
   reader             <- getCReader $! readerStr
   (pandoc, mediaBag) <- reader readerOpts $! input
-  extractCMediabag False mediaBagStr mediaBag
+  pandoc'            <- extractCMediabag mediaBagStr mediaBag pandoc
   writer             <- getCWriter $! writerStr
   let writerOpts'    = writerOpts { writerMediaBag = writerMediaBag writerOpts <> mediaBag }
-  writer writerOpts' pandoc
+  writer writerOpts' pandoc'
 
 -- | The `ReaderOptions` wired into the foreign export
 readerOptions :: ReaderOptions

@@ -17,6 +17,7 @@ executable PandocRb.dylib
                      , bytestring
                      , either
                      , pandoc
+                     , pandoc-types
                      , storable-tuple
                      , transformers
                      , aeson
