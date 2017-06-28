@@ -54,5 +54,72 @@ module PandocRb
     end
   end
 
+  def self.reader_from_ext(extension)
+    {
+      ".xhtml"    => "html",
+      ".html"     => "html",
+      ".htm"      => "html",
+      ".md"       => "markdown",
+      ".markdown" => "markdown",
+      ".tex"      => "latex",
+      ".latex"    => "latex",
+      ".ltx"      => "latex",
+      ".rst"      => "rst",
+      ".org"      => "org",
+      ".lhs"      => "markdown+lhs",
+      ".db"       => "docbook",
+      ".opml"     => "opml",
+      ".wiki"     => "mediawiki",
+      ".dokuwiki" => "dokuwiki",
+      ".textile"  => "textile",
+      ".native"   => "native",
+      ".json"     => "json",
+      ".docx"     => "docx",
+      ".t2t"      => "t2t",
+      ".epub"     => "epub",
+      ".odt"      => "odt",
+      ".pdf"      => "pdf",
+      ".doc"      => "doc",
+    }[extension&.downcase]
+  end
+
+  def self.reader_from_ext(extension)
+    {
+      ""          => "markdown",
+      ".tex"      => "latex",
+      ".latex"    => "latex",
+      ".ltx"      => "latex",
+      ".context"  => "context",
+      ".ctx"      => "context",
+      ".rtf"      => "rtf",
+      ".rst"      => "rst",
+      ".s5"       => "s5",
+      ".native"   => "native",
+      ".json"     => "json",
+      ".txt"      => "markdown",
+      ".text"     => "markdown",
+      ".md"       => "markdown",
+      ".markdown" => "markdown",
+      ".textile"  => "textile",
+      ".lhs"      => "markdown+lhs",
+      ".texi"     => "texinfo",
+      ".texinfo"  => "texinfo",
+      ".db"       => "docbook",
+      ".odt"      => "odt",
+      ".docx"     => "docx",
+      ".epub"     => "epub",
+      ".org"      => "org",
+      ".asciidoc" => "asciidoc",
+      ".adoc"     => "asciidoc",
+      ".pdf"      => "latex",
+      ".fb2"      => "fb2",
+      ".opml"     => "opml",
+      ".icml"     => "icml",
+      ".tei.xml"  => "tei",
+      ".tei"      => "tei",
+    }[extension&.downcase] || !!extension&.downcase&.match(/\.\d$/)
+  end
+
+
 end
 
